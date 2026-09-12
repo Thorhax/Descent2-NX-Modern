@@ -27,7 +27,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "inferno.h"
 
 #ifdef __SWITCH__
-#include </opt/devkitpro/libnx/include/switch.h>
+#include "nx_switch.h"
 #endif
 
 #define MAX_MSG_LEN 256
@@ -71,24 +71,40 @@ void Error(const char *fmt,...)
 	char exit_message[MAX_MSG_LEN]="Error: "; // don't put the new line in for dialog output
 	va_list arglist;
 
-#ifdef __SWITCH__
-#ifndef __SWITCH_DBG__
-	consoleInit(NULL);
-#endif
-#endif
-
 	va_start(arglist,fmt);
 	vsprintf(exit_message+strlen(exit_message),fmt,arglist);
 	va_end(arglist);
 
-	Int3();
-
 	print_exit_message(exit_message);
+	fprintf(stderr, "%s\n", exit_message);
+	fflush(stdout);
+	fflush(stderr);
 
 #ifdef __SWITCH__
-	printf("Press the home button to exit...\n");
-	while (1)
-		svcSleepThread(10000000000UL);
+	consoleInit(NULL);
+	printf("\x1b[2J\x1b[1;1H");
+	printf("=======================================================\n");
+	printf("                   DESCENT 2 ERROR                     \n");
+	printf("=======================================================\n\n");
+	printf("%s\n\n", exit_message);
+	printf("A debug log was written to:\n");
+	printf("  sdmc:/switch/descent2/d2x.log\n\n");
+	printf("Press PLUS (+) or (B) to exit to Homebrew Menu.\n");
+	consoleUpdate(NULL);
+
+	padConfigureInput(1, HidNpadStyleSet_NpadStandard);
+	PadState pad;
+	padInitializeDefault(&pad);
+	while (appletMainLoop()) {
+		padUpdate(&pad);
+		u64 kDown = padGetButtonsDown(&pad);
+		if ((kDown & HidNpadButton_Plus) || (kDown & HidNpadButton_B)) {
+			break;
+		}
+		consoleUpdate(NULL);
+		svcSleepThread(16666666ULL);
+	}
+	consoleExit(NULL);
 #endif
 	exit(1);
 }

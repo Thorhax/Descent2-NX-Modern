@@ -134,7 +134,11 @@ typedef struct kc_menu
 
 const ubyte DefaultKeySettings[3][MAX_CONTROLS] = {
 {0xc8,0x48,0xd0,0x50,0xcb,0x4b,0xcd,0x4d,0x38,0xff,0xff,0x4f,0xff,0x51,0xff,0x4a,0xff,0x4e,0xff,0xff,0x10,0x47,0x12,0x49,0x1d,0x9d,0x39,0xff,0x21,0xff,0x1e,0xff,0x2c,0xff,0x30,0xff,0x13,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf,0xff,0x1f,0xff,0x33,0xff,0x34,0xff,0x23,0xff,0x14,0xff,0xff,0xff,0x0,0x0},
+#ifdef __SWITCH__
+{0x7,0x6,0x9,0x8,0x3,0xff,0xc,0xe,0xd,0xf,0xff,0xff,0xff,0x1,0x0,0x0,0x0,0x2,0x0,0x3,0x0,0xff,0x0,0xff,0x0,0x5,0x1,0x4,0x2,0xb,0xff,0x0,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xa,0xff,0xff,0xff,0xff,0xff,0x0,0x0,0x0,0x0},
+#else
 {0x0,0x1,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x1,0x0,0x0,0x0,0xff,0x0,0xff,0x0,0xff,0x0,0xff,0x0,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x0,0x0,0x0,0x0},
+#endif
 {0x0,0x1,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x1,0x0,0x0,0x0,0xff,0x0,0xff,0x0,0xff,0x0,0xff,0x0,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x0,0x0,0x0,0x0,0x0},
 };
 const ubyte DefaultKeySettingsD2X[MAX_D2X_CONTROLS] = { 0x2,0xff,0xff,0x3,0xff,0xff,0x4,0xff,0xff,0x5,0xff,0xff,0x6,0xff,0xff,0x7,0xff,0xff,0x8,0xff,0xff,0x9,0xff,0xff,0xa,0xff,0xff,0xb,0xff,0xff };
@@ -866,16 +870,113 @@ int kconfig_handler(window *wind, d_event *event, kc_menu *menu)
 			break;
 
 		case EVENT_JOYSTICK_BUTTON_DOWN:
-			if (menu->changing && menu->items[menu->citem].type == BT_JOY_BUTTON) kc_change_joybutton(menu, event, &menu->items[menu->citem]);
+			if (menu->changing && menu->items[menu->citem].type == BT_JOY_BUTTON)
+				kc_change_joybutton(menu, event, &menu->items[menu->citem]);
+			else if (!menu->changing)
+			{
+				int button = event_joystick_get_button(event);
+				d_event_keycommand kevent;
+				kevent.type = EVENT_KEY_COMMAND;
+
+				switch (button)
+				{
+					case 0:  // Switch A
+					case 10: // Switch Plus
+						kevent.keycode = KEY_ENTER;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					case 1:  // Switch B
+					case 11: // Switch Minus
+						kevent.keycode = KEY_ESC;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					case 2:  // Switch X -> Reset to defaults
+					case 3:  // Switch Y
+						kevent.keycode = KEY_CTRLED+KEY_R;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					case 13: // D-Pad Up
+						kevent.keycode = KEY_UP;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					case 15: // D-Pad Down
+						kevent.keycode = KEY_DOWN;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					case 12: // D-Pad Left
+						kevent.keycode = KEY_LEFT;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					case 14: // D-Pad Right
+						kevent.keycode = KEY_RIGHT;
+						return kconfig_key_command(wind, (d_event *)&kevent, menu);
+
+					default:
+						break;
+				}
+			}
 			break;
 
 		case EVENT_JOYSTICK_MOVED:
-			if (menu->changing && menu->items[menu->citem].type == BT_JOY_AXIS) kc_change_joyaxis(menu, event, &menu->items[menu->citem]);
+			if (menu->changing && menu->items[menu->citem].type == BT_JOY_AXIS)
+				kc_change_joyaxis(menu, event, &menu->items[menu->citem]);
 			else
 			{
 				int axis, value;
+				static int kc_stick_x = 0;
+				static int kc_stick_y = 0;
 				event_joystick_get_axis( event, &axis, &value );
 				menu->old_jaxis[axis] = value;
+
+				if (!menu->changing)
+				{
+					if (axis == 0)
+					{
+						if (value < -40 && kc_stick_x >= -40)
+						{
+							kc_stick_x = value;
+							d_event_keycommand kevent;
+							kevent.type = EVENT_KEY_COMMAND;
+							kevent.keycode = KEY_LEFT;
+							kconfig_key_command(wind, (d_event *)&kevent, menu);
+						}
+						else if (value > 40 && kc_stick_x <= 40)
+						{
+							kc_stick_x = value;
+							d_event_keycommand kevent;
+							kevent.type = EVENT_KEY_COMMAND;
+							kevent.keycode = KEY_RIGHT;
+							kconfig_key_command(wind, (d_event *)&kevent, menu);
+						}
+						else if (value > -20 && value < 20)
+						{
+							kc_stick_x = 0;
+						}
+					}
+					else if (axis == 1)
+					{
+						if (value < -40 && kc_stick_y >= -40)
+						{
+							kc_stick_y = value;
+							d_event_keycommand kevent;
+							kevent.type = EVENT_KEY_COMMAND;
+							kevent.keycode = KEY_UP;
+							kconfig_key_command(wind, (d_event *)&kevent, menu);
+						}
+						else if (value > 40 && kc_stick_y <= 40)
+						{
+							kc_stick_y = value;
+							d_event_keycommand kevent;
+							kevent.type = EVENT_KEY_COMMAND;
+							kevent.keycode = KEY_DOWN;
+							kconfig_key_command(wind, (d_event *)&kevent, menu);
+						}
+						else if (value > -20 && value < 20)
+						{
+							kc_stick_y = 0;
+						}
+					}
+				}
 			}
 			break;
 
@@ -1379,6 +1480,11 @@ void kconfig_read_controls(d_event *event, int automap_flag)
 			if (axis == kc_joystick[23].value) // Throttle - default deadzone
 				joy_null_value = PlayerCfg.JoystickDead[5]*3;
 
+#ifdef __SWITCH__
+			if (joy_null_value < 16)
+				joy_null_value = 16;
+#endif
+
 			if (Controls.raw_joy_axis[axis] > joy_null_value) 
 				Controls.raw_joy_axis[axis] = ((Controls.raw_joy_axis[axis]-joy_null_value)*128)/(128-joy_null_value);
 			else if (Controls.raw_joy_axis[axis] < -joy_null_value)
@@ -1866,6 +1972,9 @@ void kc_set_controls()
 {
 	int i;
 
+#ifdef __SWITCH__
+	PlayerCfg.ControlType |= CONTROL_USING_JOYSTICK;
+#endif
 	for (i=0; i<NUM_KEY_CONTROLS; i++ )
 		kc_keyboard[i].value = PlayerCfg.KeySettings[0][i];
 

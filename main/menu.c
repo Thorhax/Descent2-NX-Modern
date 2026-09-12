@@ -21,6 +21,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <string.h>
 
 #include "menu.h"
+#include "nx_switch.h"
 #include "inferno.h"
 #include "game.h"
 #include "gr.h"
@@ -175,21 +176,42 @@ int MakeNewPlayerFile(int allow_abort)
 	char text[CALLSIGN_LEN+9]="";
 
 	strncpy(text, Players[Player_num].callsign,CALLSIGN_LEN);
+#ifdef __SWITCH__
+	if (text[0] == 0)
+		strncpy(text, "player", CALLSIGN_LEN);
+	switch_get_text_input(TXT_ENTER_PILOT_NAME, text, text, CALLSIGN_LEN + 1);
+#endif
 
 try_again:
 	m.type=NM_TYPE_INPUT; m.text_len = CALLSIGN_LEN; m.text = text;
 
 	Newmenu_allowed_chars = playername_allowed_chars;
+#ifdef __SWITCH__
+	{
+		char prompt[128];
+		snprintf(prompt, sizeof(prompt), "%s\n(Press Y for keyboard)", TXT_ENTER_PILOT_NAME);
+		x = newmenu_do( NULL, prompt, 1, &m, NULL, NULL );
+	}
+#else
 	x = newmenu_do( NULL, TXT_ENTER_PILOT_NAME, 1, &m, NULL, NULL );
+#endif
 	Newmenu_allowed_chars = NULL;
 
 	if ( x < 0 ) {
 		if ( allow_abort ) return 0;
+#ifdef __SWITCH__
+		switch_get_text_input(TXT_ENTER_PILOT_NAME, text, text, CALLSIGN_LEN + 1);
+#endif
 		goto try_again;
 	}
 
 	if (text[0]==0)	//null string
+	{
+#ifdef __SWITCH__
+		switch_get_text_input(TXT_ENTER_PILOT_NAME, text, text, CALLSIGN_LEN + 1);
+#endif
 		goto try_again;
+	}
 
 	d_strlwr(text);
 
@@ -219,6 +241,9 @@ int player_menu_keycommand( listbox *lb, d_event *event )
 {
 	char **items = listbox_get_items(lb);
 	int citem = listbox_get_citem(lb);
+
+	if (event->type != EVENT_KEY_COMMAND)
+		return 0;
 
 	switch (event_key_get(event))
 	{
@@ -282,6 +307,16 @@ int player_menu_handler( listbox *lb, d_event *event, char **list )
 	{
 		case EVENT_KEY_COMMAND:
 			return player_menu_keycommand(lb, event);
+			break;
+
+		case EVENT_JOYSTICK_BUTTON_DOWN:
+			if (event_joystick_get_button(event) == 2) // X button
+			{
+				d_event_keycommand kevent;
+				kevent.type = EVENT_KEY_COMMAND;
+				kevent.keycode = KEY_CTRLED + KEY_D;
+				return player_menu_keycommand(lb, (d_event *)&kevent);
+			}
 			break;
 
 		case EVENT_NEWMENU_SELECTED:

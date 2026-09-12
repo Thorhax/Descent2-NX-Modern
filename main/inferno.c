@@ -295,17 +295,93 @@ int standard_handler(d_event *event)
 	return 0;
 }
 
-#ifdef __SWITCH_DBG__
-void switch_init()
+#ifdef __SWITCH__
+#include "nx_switch.h"
+#include <unistd.h>
+#include <sys/stat.h>
+#include <signal.h>
+#include <time.h>
+
+static void SwitchCrashHandler(int sig)
 {
-	gfxInitDefault();
+	fprintf(stderr, "\n=======================================================\n");
+	fprintf(stderr, "*** CRASH DETECTED: Signal %d ***\n", sig);
+	fprintf(stderr, "=======================================================\n");
+	fflush(stdout);
+	fflush(stderr);
+
 	consoleInit(NULL);
-	printf("\x1b[16;20HHello World!\n");
+	printf("\x1b[2J\x1b[1;1H");
+	printf("=======================================================\n");
+	printf("                  DESCENT 2 CRASHED                    \n");
+	printf("=======================================================\n\n");
+	printf("Fatal Signal caught: %d\n\n", sig);
+	printf("A debug crash log was written to:\n");
+	printf("  sdmc:/switch/descent2/d2x.log\n\n");
+	printf("Press PLUS (+) or (B) to exit to Homebrew Menu.\n");
+	consoleUpdate(NULL);
+
+	padConfigureInput(1, HidNpadStyleSet_NpadStandard);
+	PadState pad;
+	padInitializeDefault(&pad);
+	while (appletMainLoop()) {
+		padUpdate(&pad);
+		u64 kDown = padGetButtonsDown(&pad);
+		if ((kDown & HidNpadButton_Plus) || (kDown & HidNpadButton_B)) {
+			break;
+		}
+		consoleUpdate(NULL);
+		svcSleepThread(16666666ULL);
+	}
+	consoleExit(NULL);
+	exit(sig);
 }
 
-void switch_end()
+static void RegisterSwitchCrashHandlers(void)
 {
-	gfxExit();
+	signal(SIGSEGV, SwitchCrashHandler);
+	signal(SIGABRT, SwitchCrashHandler);
+	signal(SIGFPE, SwitchCrashHandler);
+	signal(SIGILL, SwitchCrashHandler);
+	signal(SIGBUS, SwitchCrashHandler);
+}
+
+static void switch_log_init(int argc, char *argv[])
+{
+	mkdir("sdmc:/switch", 0777);
+	mkdir("sdmc:/switch/descent2", 0777);
+
+	FILE *fp = freopen("sdmc:/switch/descent2/d2x.log", "w", stdout);
+	if (!fp) {
+		freopen("sdmc:/d2x.log", "w", stdout);
+	}
+	freopen("sdmc:/switch/descent2/d2x.log", "a", stderr);
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+
+	time_t now = time(NULL);
+	char time_str[64] = "Unknown time";
+	struct tm *tm_info = localtime(&now);
+	if (tm_info) {
+		strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
+	}
+
+	char cwd[1024] = {0};
+	getcwd(cwd, sizeof(cwd));
+
+	printf("=======================================================\n");
+	printf("  D2X Switch (Descent 2) Startup Log\n");
+	printf("  Version: %s (%s)\n", DESCENT_VERSION, g_descent_build_datetime);
+	printf("  Date/Time: %s\n", time_str);
+	printf("  Current Working Directory: %s\n", cwd);
+	printf("  Arguments (%d):\n", argc);
+	for (int i = 0; i < argc; i++) {
+		printf("    [%d]: %s\n", i, argv[i] ? argv[i] : "(null)");
+	}
+	printf("=======================================================\n\n");
+	fflush(stdout);
+	fflush(stderr);
 }
 #endif //__SWITCH__
 
@@ -317,8 +393,10 @@ jmp_buf LeaveEvents;
 
 int main(int argc, char *argv[])
 {
-#ifdef __SWITCH_DBG__
-	switch_init();
+#ifdef __SWITCH__
+	romfsInit();
+	switch_log_init(argc, argv);
+	RegisterSwitchCrashHandlers();
 #endif
 	mem_init();
 #if defined(__LINUX__) || defined(__SWITCH__)

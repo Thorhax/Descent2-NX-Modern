@@ -146,7 +146,11 @@ void joy_init()
 	memset(joyaxis_text, 0, JOY_MAX_AXES * sizeof(char *));
 	memset(joybutton_text, 0, JOY_MAX_BUTTONS * sizeof(char *));
 
+#ifdef __SWITCH__
+	n = 1;
+#else
 	n = SDL_NumJoysticks();
+#endif
 
 	con_printf(CON_NORMAL, "sdl-joystick: found %d joysticks\n", n);
 	for (i = 0; i < n; i++) {
@@ -223,12 +227,18 @@ void joy_init()
 
 void joy_close()
 {
-	SDL_JoystickClose(SDL_Joysticks[num_joysticks].handle);
+	int i;
+	for (i = 0; i < num_joysticks; i++) {
+		if (SDL_Joysticks[i].handle)
+			SDL_JoystickClose(SDL_Joysticks[i].handle);
+		SDL_Joysticks[i].handle = NULL;
+	}
+	num_joysticks = 0;
 
-	while (Joystick.n_axes--)
-		d_free(joyaxis_text[Joystick.n_axes]);
-	while (Joystick.n_buttons--)
-		d_free(joybutton_text[Joystick.n_buttons]);
+	while (Joystick.n_axes > 0)
+		d_free(joyaxis_text[--Joystick.n_axes]);
+	while (Joystick.n_buttons > 0)
+		d_free(joybutton_text[--Joystick.n_buttons]);
 }
 
 void event_joystick_get_axis(d_event *event, int *axis, int *value)

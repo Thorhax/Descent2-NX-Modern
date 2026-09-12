@@ -88,6 +88,7 @@ void con_printf(int priority, const char *fmt, ...)
 
 		/* Print output to stdout */
 		printf("%s",buffer);
+		fflush(stdout);
 
 		/* Print output to gamelog.txt */
 		if (gamelog_fp)

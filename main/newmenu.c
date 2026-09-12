@@ -60,6 +60,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "rbaudio.h"
 #include "args.h"
 #include "gamepal.h"
+#include "nx_switch.h"
 
 #ifdef OGL
 #include "ogl_init.h"
@@ -941,7 +942,6 @@ int newmenu_key_command(window *wind, d_event *event, newmenu *menu)
 				menu->items[old_choice].value = -1;
 			}
 			break;
-#ifndef __SWITCH__
 		case KEY_SPACEBAR:
 			if ( menu->citem > -1 )	{
 
@@ -978,7 +978,6 @@ int newmenu_key_command(window *wind, d_event *event, newmenu *menu)
 				}
 			}
 			break;
-#endif // __SWITCH__
 
 		case KEY_SHIFTED+KEY_UP:
 			if (menu->reorderitems && menu->citem!=0)
@@ -1006,9 +1005,6 @@ int newmenu_key_command(window *wind, d_event *event, newmenu *menu)
 				changed = 1;
 			}
 			break;
-#ifdef __SWITCH__
-		case KEY_CTRLED+KEY_LCTRL:
-#endif
 		case KEY_ENTER:
 		case KEY_PADENTER:
 			if ( (menu->citem>-1) && (item->type==NM_TYPE_INPUT_MENU) && (item->group==0))	{
@@ -1036,9 +1032,6 @@ int newmenu_key_command(window *wind, d_event *event, newmenu *menu)
 			}
 			break;
 
-#ifdef __SWITCH__
-		case KEY_SPACEBAR:
-#endif
 		case KEY_ESC:
 			if ( (menu->citem>-1) && (item->type==NM_TYPE_INPUT_MENU) && (item->group==1))	{
 				item->group=0;
@@ -1537,6 +1530,142 @@ int newmenu_handler(window *wind, d_event *event, newmenu *menu)
 			return newmenu_key_command(wind, event, menu);
 			break;
 
+		case EVENT_JOYSTICK_BUTTON_DOWN:
+		{
+			int button = event_joystick_get_button(event);
+			d_event_keycommand kevent;
+			kevent.type = EVENT_KEY_COMMAND;
+
+			switch (button)
+			{
+				case 0:  // Switch A
+					if (menu->citem >= 0 && (menu->items[menu->citem].type == NM_TYPE_CHECK || menu->items[menu->citem].type == NM_TYPE_RADIO))
+						kevent.keycode = KEY_SPACEBAR;
+					else
+						kevent.keycode = KEY_ENTER;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 10: // Switch Plus
+					kevent.keycode = KEY_ENTER;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 1:  // Switch B
+				case 11: // Switch Minus
+					kevent.keycode = KEY_ESC;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 2:  // Switch X
+					kevent.keycode = KEY_SPACEBAR;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 3:  // Switch Y: text input or backspace
+					if (menu->citem >= 0 && (menu->items[menu->citem].type == NM_TYPE_INPUT || menu->items[menu->citem].type == NM_TYPE_INPUT_MENU))
+					{
+						char buf[256];
+						int maxlen = menu->items[menu->citem].text_len;
+						if (maxlen > (int)sizeof(buf) - 1)
+							maxlen = (int)sizeof(buf) - 1;
+						strncpy(buf, menu->items[menu->citem].text, maxlen);
+						buf[maxlen] = '\0';
+						if (switch_get_text_input("Enter Text", buf, buf, maxlen + 1))
+						{
+							strncpy(menu->items[menu->citem].text, buf, maxlen);
+							menu->items[menu->citem].text[maxlen] = '\0';
+							if (menu->items[menu->citem].type == NM_TYPE_INPUT_MENU)
+								strncpy(menu->items[menu->citem].saved_text, buf, maxlen);
+							menu->items[menu->citem].value = strlen(menu->items[menu->citem].text);
+						}
+						return 1;
+					}
+					kevent.keycode = KEY_BACKSP;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 13: // D-Pad Up
+					kevent.keycode = KEY_UP;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 15: // D-Pad Down
+					kevent.keycode = KEY_DOWN;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 12: // D-Pad Left
+					kevent.keycode = KEY_LEFT;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 14: // D-Pad Right
+					kevent.keycode = KEY_RIGHT;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 6:  // L
+					kevent.keycode = KEY_PAGEUP;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				case 7:  // R
+					kevent.keycode = KEY_PAGEDOWN;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+
+				default:
+					break;
+			}
+			break;
+		}
+
+		case EVENT_JOYSTICK_MOVED:
+		{
+			int axis, value;
+			static int menu_stick_x = 0;
+			static int menu_stick_y = 0;
+			event_joystick_get_axis(event, &axis, &value);
+
+			if (axis == 0) // Left stick X
+			{
+				if (value < -40 && menu_stick_x >= -40)
+				{
+					menu_stick_x = value;
+					d_event_keycommand kevent;
+					kevent.type = EVENT_KEY_COMMAND;
+					kevent.keycode = KEY_LEFT;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+				}
+				else if (value > 40 && menu_stick_x <= 40)
+				{
+					menu_stick_x = value;
+					d_event_keycommand kevent;
+					kevent.type = EVENT_KEY_COMMAND;
+					kevent.keycode = KEY_RIGHT;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+				}
+				else if (value > -20 && value < 20)
+				{
+					menu_stick_x = 0;
+				}
+			}
+			else if (axis == 1) // Left stick Y
+			{
+				if (value < -40 && menu_stick_y >= -40)
+				{
+					menu_stick_y = value;
+					d_event_keycommand kevent;
+					kevent.type = EVENT_KEY_COMMAND;
+					kevent.keycode = KEY_UP;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+				}
+				else if (value > 40 && menu_stick_y <= 40)
+				{
+					menu_stick_y = value;
+					d_event_keycommand kevent;
+					kevent.type = EVENT_KEY_COMMAND;
+					kevent.keycode = KEY_DOWN;
+					return newmenu_key_command(wind, (d_event *)&kevent, menu);
+				}
+				else if (value > -20 && value < 20)
+				{
+					menu_stick_y = 0;
+				}
+			}
+			break;
+		}
+
 		case EVENT_IDLE:
 			timer_delay2(50);
 
@@ -1887,9 +2016,6 @@ int listbox_key_command(window *wind, d_event *event, listbox *lb)
 		case KEY_PAD9:
 			lb->citem -= LB_ITEMS_ON_SCREEN;
 			break;
-#ifdef __SWITCH__
-		case KEY_SPACEBAR:
-#endif
 		case KEY_ESC:
 			if (lb->allow_abort_flag) {
 				lb->citem = -1;
@@ -1897,9 +2023,6 @@ int listbox_key_command(window *wind, d_event *event, listbox *lb)
 				return 1;
 			}
 			break;
-#ifdef __SWITCH__
-		case KEY_CTRLED+KEY_LCTRL:
-#endif
 		case KEY_ENTER:
 		case KEY_PADENTER:
 			// Tell callback, allow staying in menu
@@ -2120,6 +2243,86 @@ int listbox_handler(window *wind, d_event *event, listbox *lb)
 		case EVENT_KEY_COMMAND:
 			return listbox_key_command(wind, event, lb);
 			break;
+
+		case EVENT_JOYSTICK_BUTTON_DOWN:
+		{
+			int button = event_joystick_get_button(event);
+			d_event_keycommand kevent;
+			kevent.type = EVENT_KEY_COMMAND;
+
+			switch (button)
+			{
+				case 0:  // Switch A
+				case 10: // Switch Plus
+					kevent.keycode = KEY_ENTER;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+
+				case 1:  // Switch B
+				case 11: // Switch Minus
+					kevent.keycode = KEY_ESC;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+
+				case 2:  // Switch X
+					kevent.keycode = KEY_CTRLED + KEY_D;
+					if (lb->listbox_callback && (*lb->listbox_callback)(lb, (d_event *)&kevent, lb->userdata))
+						return 1;
+					break;
+
+				case 13: // D-Pad Up
+					kevent.keycode = KEY_UP;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+
+				case 15: // D-Pad Down
+					kevent.keycode = KEY_DOWN;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+
+				case 12: // D-Pad Left
+				case 6:  // L
+					kevent.keycode = KEY_PAGEUP;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+
+				case 14: // D-Pad Right
+				case 7:  // R
+					kevent.keycode = KEY_PAGEDOWN;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+
+				default:
+					break;
+			}
+			break;
+		}
+
+		case EVENT_JOYSTICK_MOVED:
+		{
+			int axis, value;
+			static int lb_stick_y = 0;
+			event_joystick_get_axis(event, &axis, &value);
+
+			if (axis == 1)
+			{
+				if (value < -40 && lb_stick_y >= -40)
+				{
+					lb_stick_y = value;
+					d_event_keycommand kevent;
+					kevent.type = EVENT_KEY_COMMAND;
+					kevent.keycode = KEY_UP;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+				}
+				else if (value > 40 && lb_stick_y <= 40)
+				{
+					lb_stick_y = value;
+					d_event_keycommand kevent;
+					kevent.type = EVENT_KEY_COMMAND;
+					kevent.keycode = KEY_DOWN;
+					return listbox_key_command(wind, (d_event *)&kevent, lb);
+				}
+				else if (value > -20 && value < 20)
+				{
+					lb_stick_y = 0;
+				}
+			}
+			break;
+		}
 
 		case EVENT_IDLE:
 			timer_delay2(50);

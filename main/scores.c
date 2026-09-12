@@ -377,6 +377,17 @@ int scores_handler(window *wind, d_event *event, scores_menu *menu)
 			}
 			break;
 
+		case EVENT_JOYSTICK_BUTTON_DOWN:
+		{
+			int button = event_joystick_get_button(event);
+			if (button == 0 || button == 1 || button == 2 || button == 10 || button == 11)
+			{
+				window_close(wind);
+				return 1;
+			}
+			break;
+		}
+
 		case EVENT_MOUSE_BUTTON_DOWN:
 		case EVENT_MOUSE_BUTTON_UP:
 			if (event_mouse_get_button(event) == MBTN_LEFT || event_mouse_get_button(event) == MBTN_RIGHT)

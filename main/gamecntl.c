@@ -374,6 +374,17 @@ int pause_handler(window *wind, d_event *event, char *msg)
 			}
 			break;
 
+		case EVENT_JOYSTICK_BUTTON_DOWN:
+		{
+			int button = event_joystick_get_button(event);
+			if (button == 0 || button == 1 || button == 10 || button == 11) // A, B, Plus, Minus
+			{
+				window_close(wind);
+				return 1;
+			}
+			break;
+		}
+
 		case EVENT_IDLE:
 			timer_delay2(50);
 			break;

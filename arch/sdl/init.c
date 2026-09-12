@@ -26,13 +26,6 @@ void arch_close(void)
 
 	mouse_close();
 
-// aagallag: TODO -- Fix bug so we can gracefully exit
-#ifdef __SWITCH__
-	consoleInit(NULL);
-	printf("Press the home button to exit...\n");
-	while (1)
-		svcSleepThread(10000000000UL);
-#endif
 
 	if (!GameArg.SndNoSound)
 	{
@@ -42,11 +35,19 @@ void arch_close(void)
 	key_close();
 
 	SDL_Quit();
+
+#ifdef __SWITCH__
+	romfsExit();
+#endif
 }
 
 void arch_init(void)
 {
 	int t;
+
+#ifdef __SWITCH__
+	romfsInit();
+#endif
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
 		Error("SDL library initialisation failed: %s.",SDL_GetError());
@@ -67,5 +68,35 @@ void arch_init(void)
 		Error(TXT_CANT_INIT_GFX,t);
 
 	atexit(arch_close);
+}
+
+int switch_get_text_input(const char *header, const char *initial_text, char *out_buffer, size_t max_len)
+{
+#ifdef __SWITCH__
+	SwkbdConfig kbd;
+	Result rc;
+
+	if (!out_buffer || max_len <= 1)
+		return 0;
+
+	rc = swkbdCreate(&kbd, 0);
+	if (R_FAILED(rc))
+		return 0;
+
+	swkbdConfigMakePresetDefault(&kbd);
+	if (header && header[0])
+		swkbdConfigSetHeaderText(&kbd, header);
+	if (initial_text && initial_text[0])
+		swkbdConfigSetInitialText(&kbd, initial_text);
+	swkbdConfigSetStringLenMax(&kbd, (u32)(max_len - 1));
+
+	rc = swkbdShow(&kbd, out_buffer, max_len);
+	swkbdClose(&kbd);
+
+	return R_SUCCEEDED(rc);
+#else
+	(void)header; (void)initial_text; (void)out_buffer; (void)max_len;
+	return 0;
+#endif
 }
 

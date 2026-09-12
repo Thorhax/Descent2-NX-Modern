@@ -26,6 +26,7 @@
 #include "digi.h"
 #include "digi_mixer.h"
 #include "digi_mixer_music.h"
+#include "tsf_music.h"
 #include "console.h"
 #include "config.h"
 #include "args.h"
@@ -39,7 +40,9 @@
 #define MIX_OUTPUT_CHANNELS	2
 
 #define MAX_SOUND_SLOTS 64
-#if !((defined(__APPLE__) && defined(__MACH__)) || defined(macintosh))
+#ifdef __SWITCH__
+#define SOUND_BUFFER_SIZE 2048
+#elif !((defined(__APPLE__) && defined(__MACH__)) || defined(macintosh))
 #define SOUND_BUFFER_SIZE 2048
 #else
 #define SOUND_BUFFER_SIZE 1024
@@ -58,7 +61,13 @@ int digi_mixer_init()
 	if (MIX_DIGI_DEBUG) con_printf(CON_DEBUG,"digi_init %d (SDL_Mixer)\n", MAX_SOUNDS);
 	if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) Error("SDL audio initialisation failed: %s.", SDL_GetError());
 
-	if (Mix_OpenAudio(SAMPLE_RATE_44K, MIX_OUTPUT_FORMAT, MIX_OUTPUT_CHANNELS, SOUND_BUFFER_SIZE))
+#ifdef __SWITCH__
+	int mix_rate = 48000;
+#else
+	int mix_rate = SAMPLE_RATE_44K;
+#endif
+
+	if (Mix_OpenAudio(mix_rate, MIX_OUTPUT_FORMAT, MIX_OUTPUT_CHANNELS, SOUND_BUFFER_SIZE))
 	{
 		//edited on 10/05/98 by Matt Mueller - should keep running, just with no sound.
 		con_printf(CON_URGENT,"\nError: Couldn't open audio: %s\n", SDL_GetError());
@@ -74,6 +83,8 @@ int digi_mixer_init()
 
 	digi_mixer_set_digi_volume( (GameCfg.DigiVolume*32768)/8 );
 
+	tsf_music_init();
+
 	return 0;
 }
 
@@ -82,6 +93,7 @@ void digi_mixer_close() {
 	if (MIX_DIGI_DEBUG) con_printf(CON_DEBUG,"digi_close (SDL_Mixer)\n");
 	if (!digi_initialised) return;
 	digi_initialised = 0;
+	tsf_music_close();
 	Mix_CloseAudio();
 }
 
@@ -128,7 +140,7 @@ void mixdigi_convert_sound(int i)
 		if (SDL_ConvertAudio(&cvt)) con_printf(CON_DEBUG,"conversion of %d failed\n", i);
 
 		SoundChunks[i].abuf = cvt.buf;
-		SoundChunks[i].alen = dlen * cvt.len_mult;
+		SoundChunks[i].alen = cvt.len_cvt;
 		SoundChunks[i].allocated = 1;
 		SoundChunks[i].volume = 128; // Max volume = 128
 	}

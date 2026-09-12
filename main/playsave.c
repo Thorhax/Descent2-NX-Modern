@@ -83,7 +83,11 @@ extern void InitWeaponOrdering();
 int new_player_config()
 {
 	InitWeaponOrdering (); //setup default weapon priorities
+#ifdef __SWITCH__
+	PlayerCfg.ControlType = CONTROL_USING_JOYSTICK;
+#else
 	PlayerCfg.ControlType=0; // Assume keyboard
+#endif
 	memcpy(PlayerCfg.KeySettings, DefaultKeySettings, sizeof(DefaultKeySettings));
 	memcpy(PlayerCfg.KeySettingsD2X, DefaultKeySettingsD2X, sizeof(DefaultKeySettingsD2X));
 	kc_set_controls();
@@ -95,7 +99,11 @@ int new_player_config()
 	PlayerCfg.HighestLevels[0].LevelNum = 1; //was highest level in old struct
 	PlayerCfg.KeyboardSens[0] = PlayerCfg.KeyboardSens[1] = PlayerCfg.KeyboardSens[2] = PlayerCfg.KeyboardSens[3] = PlayerCfg.KeyboardSens[4] = 16;
 	PlayerCfg.JoystickSens[0] = PlayerCfg.JoystickSens[1] = PlayerCfg.JoystickSens[2] = PlayerCfg.JoystickSens[3] = PlayerCfg.JoystickSens[4] = PlayerCfg.JoystickSens[5] = 8;
+#ifdef __SWITCH__
+	PlayerCfg.JoystickDead[0] = PlayerCfg.JoystickDead[1] = PlayerCfg.JoystickDead[2] = PlayerCfg.JoystickDead[3] = PlayerCfg.JoystickDead[4] = PlayerCfg.JoystickDead[5] = 3;
+#else
 	PlayerCfg.JoystickDead[0] = PlayerCfg.JoystickDead[1] = PlayerCfg.JoystickDead[2] = PlayerCfg.JoystickDead[3] = PlayerCfg.JoystickDead[4] = PlayerCfg.JoystickDead[5] = 0;
+#endif
 	PlayerCfg.JoystickUndercalibrate[0] = PlayerCfg.JoystickUndercalibrate[1] = PlayerCfg.JoystickUndercalibrate[2] = PlayerCfg.JoystickUndercalibrate[3] = PlayerCfg.JoystickUndercalibrate[4] = PlayerCfg.JoystickUndercalibrate[5] = 0;
 	PlayerCfg.MouseControlStyle = MOUSE_CONTROL_OLDSCHOOL; /* Old School Mouse */
 	PlayerCfg.MouseImpulse = 8;
@@ -240,6 +248,12 @@ int read_player_d2x(char *filename)
 				word=splitword(line,'=');
 				d_strupr(word);
 			}
+#ifdef __SWITCH__
+			for (int d = 0; d < 6; d++) {
+				if (PlayerCfg.JoystickDead[d] < 2)
+					PlayerCfg.JoystickDead[d] = 3;
+			}
+#endif
 		}
 		else if (strstr(word,"MOUSE"))
 		{
@@ -690,7 +704,19 @@ int read_player_file()
 		else if (PHYSFS_read(file, &dummy_joy_sens, sizeof(ubyte), 1) !=1 )
 			goto read_player_file_failed;
 
+#ifdef __SWITCH__
+		PlayerCfg.ControlType = CONTROL_USING_JOYSTICK;
+
+		if (PlayerCfg.KeySettings[1][17] == 255 || PlayerCfg.KeySettings[1][19] == 255 ||
+		    PlayerCfg.KeySettings[1][2] == 255 || PlayerCfg.KeySettings[1][3] == 255 ||
+		    (PlayerCfg.KeySettings[1][0] == 0 && PlayerCfg.KeySettings[1][1] == 1))
+		{
+			memcpy(PlayerCfg.KeySettings[1], DefaultKeySettings[1], sizeof(PlayerCfg.KeySettings[1]));
+			rewrite_it = 1;
+		}
+#else
 		PlayerCfg.ControlType = control_type_dos;
+#endif
 	
 		for (i=0;i<11;i++)
 		{

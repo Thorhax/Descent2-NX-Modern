@@ -71,6 +71,7 @@ int credits_handler(window *wind, d_event *event, credits *cr)
 	
 	switch (event->type)
 	{
+		case EVENT_JOYSTICK_BUTTON_DOWN:
 		case EVENT_KEY_COMMAND:
 			if (!call_default_handler(event))	// if not print screen, debug etc
 				window_close(wind);

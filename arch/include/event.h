@@ -60,6 +60,12 @@ typedef struct d_event
 	event_type type;
 } d_event;
 
+typedef struct d_event_keycommand
+{
+	event_type type;	// EVENT_KEY_COMMAND/RELEASE
+	int keycode;
+} d_event_keycommand;
+
 int event_init();
 
 // Sends input events to event handlers
