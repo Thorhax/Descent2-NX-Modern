@@ -1,2 +1,10 @@
-# GitHub Funding Configuration
+# These are supported funding model platforms
+
 ko_fi: thorhax
+patreon: thorhax
+
+# Other supported platforms (uncomment if you use them):
+# github: [username]
+# open_collective: username
+# buy_me_a_coffee: username
+# custom: ['https://example.com']
